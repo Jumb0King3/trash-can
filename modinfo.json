@@ -7,7 +7,7 @@
     "Jumboking3"
   ],
   "description": "A trash can you open like a chest: the lid swings open, you put unwanted items in, and press Delete items to delete them for good. Comes in every wood and copper, bronze or iron to match what you craft it from.",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "side": "Universal",
   "requiredOnClient": true,
   "requiredOnServer": true,
