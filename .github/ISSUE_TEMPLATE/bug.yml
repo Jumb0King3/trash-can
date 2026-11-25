@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in Trash Can isn't working
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The more detail you give, the faster it gets fixed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: mod_version
+    attributes:
+      label: Trash Can version
+      placeholder: "1.4.3"
+    validations:
+      required: true
+  - type: input
+    id: game_version
+    attributes:
+      label: Vintage Story version
+      placeholder: "1.22.7"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - Singleplayer
+        - Multiplayer (server)
+    validations:
+      required: true
+  - type: textarea
+    id: mods
+    attributes:
+      label: Other mods installed
+      description: Especially mods that touch the same things as this one.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: 'Paste any errors from client-main.log or server-main.log, or attach the file. The Logs folder is in your Vintage Story data folder (Windows: %appdata%\VintagestoryData, Linux: ~/.config/VintagestoryData, Mac: ~/Library/Application Support/VintagestoryData).'
+      render: text
