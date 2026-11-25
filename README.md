@@ -13,7 +13,7 @@ Trash Can adds a trash can for getting rid of items you don't want.
 
 Any one wood plus any one metal: 5 boards of the same wood and 1 ingot. There are 14 woods (including aged and very aged) and 5 metals (copper, tin bronze, bismuth bronze, black bronze and iron), so there are 70 different looks to choose from.
 
-![Trash Can crafting recipe](https://moddbcdn.vintagestory.at/trashcan_recipe_3b0047d3c88bc3736d322685d9b72e36.gif)
+<p align="center"><img src="https://moddbcdn.vintagestory.at/trashcan_recipe_3b0047d3c88bc3736d322685d9b72e36.gif" alt="Trash Can crafting recipe" width="600"></p>
 
 **Good to know**
 
