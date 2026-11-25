@@ -28,4 +28,18 @@ ModDB (1-click install): https://mods.vintagestory.at/trashcan
 
 ## Report a problem
 
-Please report bugs on the [Issues](../../issues) tab. Security problems: see [SECURITY.md](SECURITY.md).
+Please report bugs on the [Issues](../../issues) tab and include your game version, the mod version and your log. Security problems: see [SECURITY.md](SECURITY.md).
+
+**Where to find your log**
+
+The logs are in the Vintage Story data folder, in a folder called `Logs`:
+
+| System | Data folder |
+|---|---|
+| Windows | `%appdata%\VintagestoryData` (paste that into the File Explorer address bar) |
+| Linux | `~/.config/VintagestoryData` |
+| Mac | `~/Library/Application Support/VintagestoryData` |
+
+- **Playing on a server:** send `client-main.log` from your own game. If you run the server, also send `server-main.log` from the server's data folder.
+- **Singleplayer:** `client-main.log` and `server-main.log` are both in the data folder above.
+- Attach the file to the issue (drag it into the box), or paste just the lines with errors. Reproduce the problem first, then grab the log straight afterwards, so the error is near the end.
