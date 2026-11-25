@@ -1,11 +1,6 @@
 {
   "textureWidth": 16,
   "textureHeight": 16,
-  "textures": {
-    "body": "trashcan:block/trashcan-body",
-    "band": "trashcan:block/trashcan-band",
-    "lid": "trashcan:block/trashcan-lid"
-  },
   "elements": [
     {
       "name": "Body",

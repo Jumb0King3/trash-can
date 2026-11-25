@@ -119,7 +119,7 @@ namespace TrashCan
                     Api.Logger.Warning("[trashcan] Could not load the trash can shape for the lid animation");
                     return;
                 }
-                util.InitializeAnimator("trashcan-lid", shape, capi.Tesselator.GetTextureSource(Block), new Vec3f(0, 0, 0));
+                util.InitializeAnimator("trashcan-lid-" + Block.Code.ToString(), shape, capi.Tesselator.GetTextureSource(Block), new Vec3f(0, 0, 0));
                 animatorReady = true;
             }
             catch (Exception e)

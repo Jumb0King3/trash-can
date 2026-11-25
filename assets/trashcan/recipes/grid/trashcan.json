@@ -5,16 +5,41 @@
   "ingredients": {
     "C": {
       "type": "item",
-      "code": "game:ingot-copper"
+      "code": "game:ingot-*",
+      "name": "metal",
+      "allowedVariants": [
+        "copper",
+        "tinbronze",
+        "bismuthbronze",
+        "blackbronze",
+        "iron"
+      ]
     },
     "P": {
       "type": "item",
-      "code": "game:plank-*"
+      "code": "game:plank-*",
+      "name": "wood",
+      "allowedVariants": [
+        "birch",
+        "oak",
+        "maple",
+        "pine",
+        "acacia",
+        "kapok",
+        "baldcypress",
+        "larch",
+        "redwood",
+        "ebony",
+        "walnut",
+        "purpleheart",
+        "aged",
+        "veryaged"
+      ]
     }
   },
   "output": {
     "type": "block",
-    "code": "trashcan:trashcan",
+    "code": "trashcan:trashcan-{wood}-{metal}",
     "quantity": 1
   }
 }
