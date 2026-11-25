@@ -37,13 +37,40 @@ namespace TrashCan
     {
         public override bool OnBlockInteractStart(IWorldAccessor world, IPlayer byPlayer, BlockSelection blockSel)
         {
+            // Sneak + right-click is left to other mods (e.g. CarryOn picking it up).
+            if (byPlayer != null && byPlayer.Entity != null && byPlayer.Entity.Controls.ShiftKey)
+            {
+                return base.OnBlockInteractStart(world, byPlayer, blockSel);
+            }
+
+            BlockEntityTrashCan be = world.BlockAccessor.GetBlockEntity(blockSel.Position) as BlockEntityTrashCan;
+            if (be == null)
+            {
+                if (world.Side == EnumAppSide.Client) world.Logger.Warning("[trashcan] No trash can block entity at {0}, can't open it", blockSel.Position);
+                return base.OnBlockInteractStart(world, byPlayer, blockSel);
+            }
+
+            if (!world.Claims.TryAccess(byPlayer, blockSel.Position, EnumBlockAccessFlags.Use)) return false;
+
+            be.OnPlayerRightClick(byPlayer);
+            return true;
+        }
+
+        /// <summary>Turns the trash can so its front faces the player who places it (in 90 degree steps).</summary>
+        public override bool DoPlaceBlock(IWorldAccessor world, IPlayer byPlayer, BlockSelection blockSel, ItemStack byItemStack)
+        {
+            bool placed = base.DoPlaceBlock(world, byPlayer, blockSel, byItemStack);
+            if (!placed || byPlayer == null || byPlayer.Entity == null) return placed;
+
             BlockEntityTrashCan be = world.BlockAccessor.GetBlockEntity(blockSel.Position) as BlockEntityTrashCan;
             if (be != null)
             {
-                be.OnPlayerRightClick(byPlayer);
-                return true;
+                double dx = byPlayer.Entity.Pos.X - (blockSel.Position.X + 0.5);
+                double dz = byPlayer.Entity.Pos.Z - (blockSel.Position.Z + 0.5);
+                float angle = (float)Math.Atan2(dx, dz);
+                be.MeshAngle = (float)Math.Round(angle / GameMath.PIHALF) * GameMath.PIHALF;
             }
-            return base.OnBlockInteractStart(world, byPlayer, blockSel);
+            return placed;
         }
     }
 
@@ -61,6 +88,19 @@ namespace TrashCan
 
         private InventoryGeneric inventory;
         private GuiDialogTrashCan dialog;
+
+        private float meshAngle;
+
+        /// <summary>Which way the trash can faces, in radians (0 = front to the south). Saved with the block.</summary>
+        public float MeshAngle
+        {
+            get { return meshAngle; }
+            set
+            {
+                meshAngle = value;
+                if (Api != null) MarkDirty(true);
+            }
+        }
 
         public BlockEntityTrashCan()
         {
@@ -177,7 +217,7 @@ namespace TrashCan
                     Api.Logger.Warning("[trashcan] Could not get the trash can textures for the lid animation");
                     return;
                 }
-                CallMethod(util, "InitializeAnimator", "trashcan-lid-" + Block.Code.ToString(), loaded, texSource, new Vec3f(0, 0, 0));
+                CallMethod(util, "InitializeAnimator", "trashcan-lid-" + Block.Code.ToString() + "-" + (int)Math.Round(meshAngle * GameMath.RAD2DEG), loaded, texSource, new Vec3f(0, meshAngle * GameMath.RAD2DEG, 0));
                 animatorReady = true;
             }
             catch (Exception e)
@@ -318,6 +358,7 @@ namespace TrashCan
         {
             base.ToTreeAttributes(tree);
             tree.SetBool("lidOpen", lidOpen);
+            tree.SetFloat("meshAngle", meshAngle);
             inventory.ToTreeAttributes(tree.GetOrAddTreeAttribute("inventory"));
         }
 
@@ -326,6 +367,12 @@ namespace TrashCan
             base.FromTreeAttributes(tree, worldForResolving);
             ITreeAttribute invTree = tree.GetTreeAttribute("inventory");
             if (invTree != null) inventory.FromTreeAttributes(invTree);
+            float angle = tree.GetFloat("meshAngle", 0f);
+            if (angle != meshAngle)
+            {
+                meshAngle = angle;
+                if (Api != null && Api.Side == EnumAppSide.Client) MarkDirty(true);
+            }
             bool open = tree.GetBool("lidOpen");
             if (Api != null && Api.Side == EnumAppSide.Client)
             {
@@ -349,26 +396,52 @@ namespace TrashCan
             ICoreClientAPI capi = Api as ICoreClientAPI;
             if (capi == null) return;
 
+            // A window that is still open: right-click closes it. One that never opened or was
+            // closed some other way is dropped, so it can't block the trash can from opening again.
             if (dialog != null)
             {
-                dialog.TryClose();
+                if (dialog.IsOpened())
+                {
+                    dialog.TryClose();
+                    return;
+                }
+                dialog = null;
+            }
+
+            try
+            {
+                BlockPos pos = Pos.Copy();
+                GuiDialogTrashCan dlg = new GuiDialogTrashCan(capi, Lang.Get("trashcan:dialog-title"), inventory, pos, Columns,
+                    () => capi.Network.SendBlockEntityPacket(pos, DeletePacketId, null));
+                dlg.OnClosed += () =>
+                {
+                    if (dialog == dlg) dialog = null;
+                    capi.World.Player.InventoryManager.CloseInventory(inventory);
+                    capi.Network.SendBlockEntityPacket(pos, (int)EnumBlockEntityPacketId.Close, null);
+                };
+                dialog = dlg;
+
+                if (!dlg.TryOpen())
+                {
+                    dialog = null;
+                    capi.Logger.Warning("[trashcan] The trash can window at {0} would not open", pos);
+                    return;
+                }
+
+                capi.World.Player.InventoryManager.OpenInventory(inventory);
+                capi.Network.SendBlockEntityPacket(pos, (int)EnumBlockEntityPacketId.Open, null);
+            }
+            catch (Exception e)
+            {
+                dialog = null;
+                capi.Logger.Error("[trashcan] Could not open the trash can at {0}: {1}", Pos, e);
+                capi.ShowChatMessage("Trash Can: couldn't open it, the error is in client-main.log");
                 return;
             }
 
-            BlockPos pos = Pos;
-            dialog = new GuiDialogTrashCan(capi, Lang.Get("trashcan:dialog-title"), inventory, pos, Columns,
-                () => capi.Network.SendBlockEntityPacket(pos, DeletePacketId, null));
-            dialog.OnClosed += () =>
-            {
-                dialog = null;
-                capi.Network.SendPacketClient(inventory.Close(byPlayer));
-                capi.Network.SendBlockEntityPacket(pos, (int)EnumBlockEntityPacketId.Close, null);
-            };
-            dialog.TryOpen();
+            // The lid is only decoration, so a problem with it never stops the window opening.
             lidOpen = true;
             ApplyLidState();
-            capi.Network.SendPacketClient(inventory.Open(byPlayer));
-            capi.Network.SendBlockEntityPacket(Pos, (int)EnumBlockEntityPacketId.Open, null);
         }
 
         public override void OnReceivedClientPacket(IPlayer player, int packetid, byte[] data)
@@ -452,6 +525,36 @@ namespace TrashCan
             MarkDirty(true);
             if (splayer != null) splayer.SendMessage(GlobalConstants.GeneralChatGroup, Lang.Get("trashcan:deleted", items, stacks), EnumChatType.Notification);
             Api.Logger.Debug("[trashcan] {0} deleted {1} item(s) in {2} stack(s) at {3}", byPlayer.PlayerName, items, stacks, Pos);
+        }
+
+        // ---------------- Facing (client) ----------------
+
+        public override bool OnTesselation(ITerrainMeshPool mesher, ITesselatorAPI tessThreadTesselator)
+        {
+            // The lid animation draws the whole trash can itself while it runs.
+            if (base.OnTesselation(mesher, tessThreadTesselator)) return true;
+            if (meshAngle == 0f || Block == null) return false;
+
+            MeshData mesh = TesselateBlock(tessThreadTesselator, Block);
+            if (mesh == null) return false;
+            mesh.Rotate(new Vec3f(0.5f, 0f, 0.5f), 0f, meshAngle, 0f);
+            mesher.AddMeshData(mesh);
+            return true;
+        }
+
+        /// <summary>Tesselator.TesselateBlock(Block, out MeshData) by reflection, like GetTextureSource above.</summary>
+        private static MeshData TesselateBlock(object tesselator, Block block)
+        {
+            foreach (System.Reflection.MethodInfo m in tesselator.GetType().GetMethods())
+            {
+                if (m.Name != "TesselateBlock") continue;
+                System.Reflection.ParameterInfo[] ps = m.GetParameters();
+                if (ps.Length != 2 || !ps[0].ParameterType.IsAssignableFrom(typeof(Block)) || !ps[1].ParameterType.IsByRef) continue;
+                object[] args = new object[] { block, null };
+                m.Invoke(tesselator, args);
+                return args[1] as MeshData;
+            }
+            return null;
         }
 
         // ---------------- Cleanup ----------------
