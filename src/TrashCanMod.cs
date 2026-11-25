@@ -70,13 +70,54 @@ namespace TrashCan
         private bool animatorReady;
         private bool animatorFailed;
 
-        private BlockEntityAnimationUtil AnimUtil
+        /// <summary>The block's animation helper, fetched by reflection (its types use Dictionary, which mod source can't reference).</summary>
+        private object AnimUtil
         {
             get
             {
                 BEBehaviorAnimatable beh = GetBehavior<BEBehaviorAnimatable>();
-                return beh != null ? beh.animUtil : null;
+                return beh == null ? null : GetMember(beh, "animUtil");
             }
+        }
+
+        private static object GetMember(object target, string name)
+        {
+            if (target == null) return null;
+            System.Type t = target.GetType();
+            System.Reflection.BindingFlags f = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            System.Reflection.FieldInfo fi = t.GetField(name, f);
+            if (fi != null) return fi.GetValue(target);
+            System.Reflection.PropertyInfo pi = t.GetProperty(name, f);
+            if (pi != null) return pi.GetValue(target, null);
+            return null;
+        }
+
+        private static void SetMember(object target, string name, object value)
+        {
+            System.Type t = target.GetType();
+            System.Reflection.BindingFlags f = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+            System.Reflection.FieldInfo fi = t.GetField(name, f);
+            if (fi != null) { fi.SetValue(target, value); return; }
+            System.Reflection.PropertyInfo pi = t.GetProperty(name, f);
+            if (pi != null && pi.CanWrite) pi.SetValue(target, value, null);
+        }
+
+        /// <summary>Calls the first public method with this name whose parameters accept the given arguments.</summary>
+        private static object CallMethod(object target, string name, params object[] args)
+        {
+            foreach (System.Reflection.MethodInfo m in target.GetType().GetMethods())
+            {
+                if (m.Name != name) continue;
+                System.Reflection.ParameterInfo[] ps = m.GetParameters();
+                if (ps.Length != args.Length) continue;
+                bool ok = true;
+                for (int i = 0; i < ps.Length; i++)
+                {
+                    if (args[i] != null && !ps[i].ParameterType.IsAssignableFrom(args[i].GetType())) { ok = false; break; }
+                }
+                if (ok) return m.Invoke(target, args);
+            }
+            throw new System.MissingMethodException(target.GetType().Name, name);
         }
 
         public override void Initialize(ICoreAPI api)
@@ -107,26 +148,42 @@ namespace TrashCan
         {
             if (animatorReady || animatorFailed) return;
             ICoreClientAPI capi = Api as ICoreClientAPI;
-            BlockEntityAnimationUtil util = AnimUtil;
+            object util = AnimUtil;
             if (capi == null || util == null || Block == null) return;
 
             try
             {
-                Shape shape = Shape.TryGet(Api, new AssetLocation("trashcan", "shapes/block/trashcan.json"));
-                if (shape == null)
+                System.Type shapeType = FindType("Vintagestory.API.Common.Shape");
+                object loaded = null;
+                if (shapeType != null)
+                {
+                    System.Reflection.MethodInfo tryGet = shapeType.GetMethod("TryGet", new System.Type[] { typeof(ICoreAPI), typeof(AssetLocation) });
+                    if (tryGet != null) loaded = tryGet.Invoke(null, new object[] { Api, new AssetLocation("trashcan", "shapes/block/trashcan.json") });
+                }
+                if (loaded == null)
                 {
                     animatorFailed = true;
                     Api.Logger.Warning("[trashcan] Could not load the trash can shape for the lid animation");
                     return;
                 }
-                util.InitializeAnimator("trashcan-lid-" + Block.Code.ToString(), shape, capi.Tesselator.GetTextureSource(Block), new Vec3f(0, 0, 0));
+                CallMethod(util, "InitializeAnimator", "trashcan-lid-" + Block.Code.ToString(), loaded, capi.Tesselator.GetTextureSource(Block), new Vec3f(0, 0, 0));
                 animatorReady = true;
             }
             catch (Exception e)
             {
                 animatorFailed = true;
-                Api.Logger.Warning("[trashcan] Lid animation unavailable: {0}", e.Message);
+                Api.Logger.Warning("[trashcan] Lid animation unavailable: {0}", (e.InnerException ?? e).Message);
             }
+        }
+
+        private static System.Type FindType(string fullName)
+        {
+            foreach (System.Reflection.Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                System.Type t = asm.GetType(fullName);
+                if (t != null) return t;
+            }
+            return null;
         }
 
         /// <summary>Opens or closes the lid to match lidOpen.</summary>
@@ -134,30 +191,30 @@ namespace TrashCan
         {
             if (Api == null || Api.Side != EnumAppSide.Client) return;
             SetupAnimator();
-            BlockEntityAnimationUtil util = AnimUtil;
+            object util = AnimUtil;
             if (!animatorReady || util == null) return;
 
             try
             {
                 if (lidOpen)
                 {
-                    util.StartAnimation(new AnimationMetaData
-                    {
-                        Animation = "lidopen",
-                        Code = "lidopen",
-                        AnimationSpeed = 1.8f,
-                        EaseOutSpeed = 6,
-                        EaseInSpeed = 15
-                    });
+                    System.Type metaType = FindType("Vintagestory.API.Common.AnimationMetaData");
+                    object meta = Activator.CreateInstance(metaType);
+                    SetMember(meta, "Animation", "lidopen");
+                    SetMember(meta, "Code", "lidopen");
+                    SetMember(meta, "AnimationSpeed", 1.8f);
+                    SetMember(meta, "EaseOutSpeed", 6f);
+                    SetMember(meta, "EaseInSpeed", 15f);
+                    CallMethod(util, "StartAnimation", meta);
                 }
                 else
                 {
-                    util.StopAnimation("lidopen");
+                    CallMethod(util, "StopAnimation", "lidopen");
                 }
             }
             catch (Exception e)
             {
-                Api.Logger.Warning("[trashcan] Lid animation failed: {0}", e.Message);
+                Api.Logger.Warning("[trashcan] Lid animation failed: {0}", (e.InnerException ?? e).Message);
             }
         }
 
