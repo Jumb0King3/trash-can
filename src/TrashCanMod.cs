@@ -62,6 +62,12 @@ namespace TrashCan
         private InventoryGeneric inventory;
         private GuiDialogTrashCan dialog;
 
+        public BlockEntityTrashCan()
+        {
+            // Created here so FromTreeAttributes (which can run before Initialize) has somewhere to load into.
+            inventory = new InventoryGeneric(SlotCount, null, null, null, null);
+        }
+
         /// <summary>Block entity packet the Delete button sends. Above the game's own ids (1000 = open, 1001 = close).</summary>
         public const int DeletePacketId = 1100;
 
@@ -124,19 +130,17 @@ namespace TrashCan
         {
             base.Initialize(api);
 
-            if (inventory == null)
-            {
-                inventory = new InventoryGeneric(SlotCount, "trashcan-" + Pos.X + "/" + Pos.Y + "/" + Pos.Z, api);
-                inventory.Pos = Pos;
-            }
+            inventory.LateInitialize("trashcan-" + Pos.X + "/" + Pos.Y + "/" + Pos.Z, api);
+            inventory.Pos = Pos;
 
             if (api.Side == EnumAppSide.Server)
             {
+                // Any change to the slots is saved with the world and sent to every player's screen.
+                inventory.SlotModified += OnSlotModified;
                 RegisterGameTickListener(OnServerTick, 500);
             }
             else
             {
-                SetupAnimator();
                 ApplyLidState();
             }
         }
@@ -180,6 +184,8 @@ namespace TrashCan
             {
                 animatorFailed = true;
                 Api.Logger.Warning("[trashcan] Lid animation unavailable: {0}", (e.InnerException ?? e).Message);
+                Api.Logger.Warning("[trashcan] Lid animation details: {0}", (e.InnerException ?? e).ToString());
+                Api.Logger.Warning("[trashcan] InitializeAnimator overloads: {0}", DescribeMethods(util, "InitializeAnimator"));
             }
         }
 
@@ -206,6 +212,22 @@ namespace TrashCan
             return null;
         }
 
+        private static string DescribeMethods(object target, string name)
+        {
+            string result = "";
+            foreach (System.Reflection.MethodInfo m in target.GetType().GetMethods())
+            {
+                if (m.Name != name) continue;
+                string ps = "";
+                foreach (System.Reflection.ParameterInfo p in m.GetParameters())
+                {
+                    ps += (ps.Length > 0 ? ", " : "") + p.ParameterType.Name + " " + p.Name;
+                }
+                result += " | " + m.ReturnType.Name + " " + name + "(" + ps + ")";
+            }
+            return result;
+        }
+
         private static System.Type FindType(string fullName)
         {
             foreach (System.Reflection.Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
@@ -220,6 +242,8 @@ namespace TrashCan
         private void ApplyLidState()
         {
             if (Api == null || Api.Side != EnumAppSide.Client) return;
+            // Only set the animator up the first time the lid actually needs to move.
+            if (!lidOpen && !animatorReady) return;
             SetupAnimator();
             object util = AnimUtil;
             if (!animatorReady || util == null) return;
@@ -267,17 +291,41 @@ namespace TrashCan
             if (open == lidOpen) return;
             lidOpen = open;
             MarkDirty(false);
+            PlayLidSound(open);
+        }
+
+        /// <summary>Server: the game's chest open/close sound at the trash can, for everyone nearby.</summary>
+        private void PlayLidSound(bool open)
+        {
+            try
+            {
+                AssetLocation sound = new AssetLocation("game", open ? "sounds/block/chestopen" : "sounds/block/chestclose");
+                // By reflection: PlaySoundAt has many overloads and the mod compiler is fussy about some of them.
+                CallMethod(Api.World, "PlaySoundAt", sound, Pos.X + 0.5, Pos.InternalY + 0.5, Pos.Z + 0.5, null, true, 16f, 1f);
+            }
+            catch (Exception e)
+            {
+                Api.Logger.Warning("[trashcan] Could not play the lid sound: {0}", (e.InnerException ?? e).Message);
+            }
+        }
+
+        private void OnSlotModified(int slotId)
+        {
+            MarkDirty(false);
         }
 
         public override void ToTreeAttributes(ITreeAttribute tree)
         {
             base.ToTreeAttributes(tree);
             tree.SetBool("lidOpen", lidOpen);
+            inventory.ToTreeAttributes(tree.GetOrAddTreeAttribute("inventory"));
         }
 
         public override void FromTreeAttributes(ITreeAttribute tree, IWorldAccessor worldForResolving)
         {
             base.FromTreeAttributes(tree, worldForResolving);
+            ITreeAttribute invTree = tree.GetTreeAttribute("inventory");
+            if (invTree != null) inventory.FromTreeAttributes(invTree);
             bool open = tree.GetBool("lidOpen");
             if (Api != null && Api.Side == EnumAppSide.Client)
             {
@@ -401,12 +449,21 @@ namespace TrashCan
                 return;
             }
 
-            MarkDirty();
+            MarkDirty(true);
             if (splayer != null) splayer.SendMessage(GlobalConstants.GeneralChatGroup, Lang.Get("trashcan:deleted", items, stacks), EnumChatType.Notification);
             Api.Logger.Debug("[trashcan] {0} deleted {1} item(s) in {2} stack(s) at {3}", byPlayer.PlayerName, items, stacks, Pos);
         }
 
         // ---------------- Cleanup ----------------
+
+        public override void OnBlockBroken(IPlayer byPlayer = null)
+        {
+            if (Api != null && Api.Side == EnumAppSide.Server && inventory != null)
+            {
+                inventory.DropAll(Pos.ToVec3d().Add(0.5, 0.5, 0.5));
+            }
+            base.OnBlockBroken(byPlayer);
+        }
 
         public override void OnBlockRemoved()
         {
