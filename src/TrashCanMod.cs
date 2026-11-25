@@ -166,7 +166,14 @@ namespace TrashCan
                     Api.Logger.Warning("[trashcan] Could not load the trash can shape for the lid animation");
                     return;
                 }
-                CallMethod(util, "InitializeAnimator", "trashcan-lid-" + Block.Code.ToString(), loaded, capi.Tesselator.GetTextureSource(Block), new Vec3f(0, 0, 0));
+                object texSource = GetBlockTextureSource(capi.Tesselator, Block);
+                if (texSource == null)
+                {
+                    animatorFailed = true;
+                    Api.Logger.Warning("[trashcan] Could not get the trash can textures for the lid animation");
+                    return;
+                }
+                CallMethod(util, "InitializeAnimator", "trashcan-lid-" + Block.Code.ToString(), loaded, texSource, new Vec3f(0, 0, 0));
                 animatorReady = true;
             }
             catch (Exception e)
@@ -174,6 +181,29 @@ namespace TrashCan
                 animatorFailed = true;
                 Api.Logger.Warning("[trashcan] Lid animation unavailable: {0}", (e.InnerException ?? e).Message);
             }
+        }
+
+        /// <summary>
+        /// Tesselator.GetTextureSource(Block) by reflection: one of its other overloads takes a Dictionary,
+        /// and naming the method at all makes the mod compiler fail (CS0012).
+        /// </summary>
+        private static object GetBlockTextureSource(object tesselator, Block block)
+        {
+            foreach (System.Reflection.MethodInfo m in tesselator.GetType().GetMethods())
+            {
+                if (m.Name != "GetTextureSource") continue;
+                System.Reflection.ParameterInfo[] ps = m.GetParameters();
+                if (ps.Length == 0 || !ps[0].ParameterType.IsAssignableFrom(typeof(Block))) continue;
+                object[] args = new object[ps.Length];
+                args[0] = block;
+                for (int i = 1; i < ps.Length; i++)
+                {
+                    args[i] = ps[i].HasDefaultValue ? ps[i].DefaultValue
+                        : (ps[i].ParameterType.IsValueType ? Activator.CreateInstance(ps[i].ParameterType) : null);
+                }
+                return m.Invoke(tesselator, args);
+            }
+            return null;
         }
 
         private static System.Type FindType(string fullName)
