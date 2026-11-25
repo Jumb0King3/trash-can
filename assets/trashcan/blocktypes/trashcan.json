@@ -1,0 +1,60 @@
+{
+  "code": "trashcan",
+  "class": "JumbokingTrashCanBlock",
+  "entityClass": "JumbokingTrashCanEntity",
+  "creativeinventory": {
+    "general": [
+      "*"
+    ],
+    "decorative": [
+      "*"
+    ]
+  },
+  "shape": {
+    "base": "trashcan:block/trashcan"
+  },
+  "textures": {
+    "body": {
+      "base": "trashcan:block/trashcan-body"
+    },
+    "band": {
+      "base": "trashcan:block/trashcan-band"
+    },
+    "lid": {
+      "base": "trashcan:block/trashcan-lid"
+    }
+  },
+  "blockmaterial": "Wood",
+  "replaceable": 100,
+  "resistance": 1.5,
+  "lightAbsorption": 0,
+  "maxStackSize": 4,
+  "sidesolid": {
+    "all": false
+  },
+  "sideopaque": {
+    "all": false
+  },
+  "collisionbox": {
+    "x1": 0.15625,
+    "y1": 0.0,
+    "z1": 0.15625,
+    "x2": 0.84375,
+    "y2": 0.875,
+    "z2": 0.84375
+  },
+  "selectionbox": {
+    "x1": 0.15625,
+    "y1": 0.0,
+    "z1": 0.15625,
+    "x2": 0.84375,
+    "y2": 0.875,
+    "z2": 0.84375
+  },
+  "sounds": {
+    "place": "game:block/planks",
+    "hit": "game:block/planks",
+    "break": "game:block/planks",
+    "walk": "game:walk/wood"
+  }
+}

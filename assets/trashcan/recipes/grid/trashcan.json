@@ -1,0 +1,20 @@
+{
+  "ingredientPattern": "_C_,P_P,PPP",
+  "width": 3,
+  "height": 3,
+  "ingredients": {
+    "C": {
+      "type": "item",
+      "code": "game:ingot-copper"
+    },
+    "P": {
+      "type": "item",
+      "code": "game:plank-*"
+    }
+  },
+  "output": {
+    "type": "block",
+    "code": "trashcan:trashcan",
+    "quantity": 1
+  }
+}

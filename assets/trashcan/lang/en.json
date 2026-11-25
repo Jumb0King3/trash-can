@@ -1,0 +1,6 @@
+{
+  "block-trashcan": "Trash Can",
+  "blockdesc-trashcan": "Right-click to open. Anything you put inside is deleted as soon as you close it. There's no undo.",
+  "dialog-title": "Trash Can",
+  "deleted": "Trash can: deleted {0} item(s) in {1} stack(s)"
+}
