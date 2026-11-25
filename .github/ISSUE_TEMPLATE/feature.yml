@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest something new for Trash Can
+title: "[Feature]: "
+labels: ["feature request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Not every idea can be added, but every one gets read. Please check the open issues first in case someone has already asked.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to see?
+      description: Describe the feature in a few sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would it be useful?
+      description: What problem does it solve, or what would it make better?
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else?
+      description: Other mods it should work with, screenshots, links or examples.
+  - type: input
+    id: game_version
+    attributes:
+      label: Vintage Story version
+      placeholder: "1.22.7"
