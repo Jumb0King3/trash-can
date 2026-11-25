@@ -5,5 +5,5 @@
   "delete-confirm": "Click again to delete",
   "nothing-to-delete": "The trash can is already empty",
   "block-trashcan-*": "Trash Can",
-  "blockdesc-trashcan-*": "Right-click to open, put unwanted items in, and press Delete items (twice) to delete them for good. There's no undo."
+  "blockdesc-trashcan-*": "Right-click to open, put unwanted items in, and press Delete items (twice) to delete them for good. There's no undo. Use a spanner to turn it."
 }

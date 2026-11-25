@@ -79,7 +79,7 @@ namespace TrashCan
     /// once nobody has it open, everything inside is deleted and the last player who closed it
     /// is told how many items went.
     /// </summary>
-    public class BlockEntityTrashCan : BlockEntity
+    public class BlockEntityTrashCan : BlockEntity, IWrenchOrientable
     {
         /// <summary>Same on server and every client, so it isn't a config setting.</summary>
         public const int SlotCount = 16;
@@ -540,6 +540,21 @@ namespace TrashCan
             mesh.Rotate(new Vec3f(0.5f, 0f, 0.5f), 0f, meshAngle, 0f);
             mesher.AddMeshData(mesh);
             return true;
+        }
+
+        /// <summary>Spanner: turns the trash can 90 degrees each use (sneak to turn the other way).</summary>
+        public void Rotate(EntityAgent byEntity, BlockSelection blockSel, int dir)
+        {
+            // Not while the lid is open, so the animation and the block never point different ways.
+            if (lidOpen) return;
+            float angle = meshAngle + (dir < 0 ? -GameMath.PIHALF : GameMath.PIHALF);
+            angle = (float)Math.Round(angle / GameMath.PIHALF) * GameMath.PIHALF;
+            angle = ((angle % GameMath.TWOPI) + GameMath.TWOPI) % GameMath.TWOPI;
+            if (angle > GameMath.TWOPI - 0.01f) angle = 0f;
+            // The lid animation is set up again next time, facing the new way.
+            animatorReady = false;
+            animatorFailed = false;
+            MeshAngle = angle;
         }
 
         /// <summary>Tesselator.TesselateBlock(Block, out MeshData) by reflection, like GetTextureSource above.</summary>
