@@ -60,8 +60,10 @@ namespace TrashCan
         private const int Columns = 4;
 
         private InventoryGeneric inventory;
-        private GuiDialogBlockEntityInventory dialog;
-        private string lastCloserUid;
+        private GuiDialogTrashCan dialog;
+
+        /// <summary>Block entity packet the Delete button sends. Above the game's own ids (1000 = open, 1001 = close).</summary>
+        public const int DeletePacketId = 1100;
 
         /// <summary>Whether anyone has it open. Set by the server and synced to every player, who see the lid open.</summary>
         private bool lidOpen;
@@ -218,11 +220,14 @@ namespace TrashCan
                 return;
             }
 
-            dialog = new GuiDialogBlockEntityInventory(Lang.Get("trashcan:dialog-title"), inventory, Pos, Columns, capi);
+            BlockPos pos = Pos;
+            dialog = new GuiDialogTrashCan(capi, Lang.Get("trashcan:dialog-title"), inventory, pos, Columns,
+                () => capi.Network.SendBlockEntityPacket(pos, DeletePacketId, null));
             dialog.OnClosed += () =>
             {
                 dialog = null;
-                capi.Network.SendBlockEntityPacket(Pos, (int)EnumBlockEntityPacketId.Close, null);
+                capi.Network.SendPacketClient(inventory.Close(byPlayer));
+                capi.Network.SendBlockEntityPacket(pos, (int)EnumBlockEntityPacketId.Close, null);
             };
             dialog.TryOpen();
             lidOpen = true;
@@ -250,10 +255,17 @@ namespace TrashCan
                 return;
             }
 
+            if (packetid == DeletePacketId)
+            {
+                // Only someone who has it open (and may use it) can empty it.
+                if (!MayUse(player) || !inventory.HasOpened(player)) return;
+                DeleteContents(player);
+                return;
+            }
+
             if (packetid == (int)EnumBlockEntityPacketId.Close)
             {
                 if (player.InventoryManager != null) player.InventoryManager.CloseInventory(inventory);
-                lastCloserUid = player.PlayerUID;
                 UpdateLidState();
             }
         }
@@ -275,10 +287,14 @@ namespace TrashCan
 
         private void OnServerTick(float dt)
         {
+            // Keeps the lid right, e.g. when a player with it open disconnects.
             if (inventory == null) return;
             UpdateLidState();
-            if (inventory.Empty || lidOpen) return;   // wait until nobody has it open
+        }
 
+        /// <summary>Server: deletes everything in the trash can and tells the player who pressed Delete.</summary>
+        private void DeleteContents(IPlayer byPlayer)
+        {
             int items = 0;
             int stacks = 0;
             for (int i = 0; i < inventory.Count; i++)
@@ -290,16 +306,17 @@ namespace TrashCan
                 slot.Itemstack = null;
                 slot.MarkDirty();
             }
-            if (stacks == 0) return;
+
+            IServerPlayer splayer = byPlayer as IServerPlayer;
+            if (stacks == 0)
+            {
+                if (splayer != null) splayer.SendMessage(GlobalConstants.GeneralChatGroup, Lang.Get("trashcan:nothing-to-delete"), EnumChatType.Notification);
+                return;
+            }
 
             MarkDirty();
-
-            IServerPlayer closer = lastCloserUid != null ? Api.World.PlayerByUid(lastCloserUid) as IServerPlayer : null;
-            if (closer != null)
-            {
-                closer.SendMessage(GlobalConstants.GeneralChatGroup, Lang.Get("trashcan:deleted", items, stacks), EnumChatType.Notification);
-            }
-            Api.Logger.Debug("[trashcan] Deleted {0} item(s) in {1} stack(s) at {2}", items, stacks, Pos);
+            if (splayer != null) splayer.SendMessage(GlobalConstants.GeneralChatGroup, Lang.Get("trashcan:deleted", items, stacks), EnumChatType.Notification);
+            Api.Logger.Debug("[trashcan] {0} deleted {1} item(s) in {2} stack(s) at {3}", byPlayer.PlayerName, items, stacks, Pos);
         }
 
         // ---------------- Cleanup ----------------
@@ -314,6 +331,101 @@ namespace TrashCan
         {
             if (dialog != null) dialog.TryClose();
             base.OnBlockUnloaded();
+        }
+    }
+
+    /// <summary>
+    /// The trash can window: 16 slots and a Delete button underneath. The button needs two clicks
+    /// (the first one arms it for 3 seconds) so nothing is deleted by accident.
+    /// </summary>
+    public class GuiDialogTrashCan : GuiDialog
+    {
+        private readonly string title;
+        private readonly InventoryBase inventory;
+        private readonly BlockPos pos;
+        private readonly int columns;
+        private readonly Action onDelete;
+        private long armedUntilMs = -1;
+
+        public GuiDialogTrashCan(ICoreClientAPI capi, string title, InventoryBase inventory, BlockPos pos, int columns, Action onDelete) : base(capi)
+        {
+            this.title = title;
+            this.inventory = inventory;
+            this.pos = pos;
+            this.columns = columns;
+            this.onDelete = onDelete;
+        }
+
+        public override string ToggleKeyCombinationCode { get { return null; } }
+        public override bool PrefersUngrabbedMouse { get { return true; } }
+
+        public override void OnGuiOpened()
+        {
+            base.OnGuiOpened();
+            armedUntilMs = -1;
+            Compose();
+        }
+
+        private bool Armed { get { return armedUntilMs > 0 && capi.World.ElapsedMilliseconds < armedUntilMs; } }
+
+        private void Compose()
+        {
+            int rows = (inventory.Count + columns - 1) / columns;
+            ElementBounds grid = ElementStdBounds.SlotGrid(EnumDialogArea.None, 0, 30, columns, rows);
+            double gridWidth = columns * 51 - 3;
+            ElementBounds button = ElementBounds.Fixed(0, 30 + rows * 51 + 8, gridWidth, 30);
+
+            ElementBounds bg = ElementBounds.Fill.WithFixedPadding(GuiStyle.ElementToDialogPadding);
+            bg.BothSizing = ElementSizing.FitToChildren;
+
+            ElementBounds dialogBounds = ElementStdBounds.AutosizedMainDialog
+                .WithAlignment(EnumDialogArea.RightMiddle)
+                .WithFixedAlignmentOffset(-GuiStyle.DialogToScreenPadding, 0);
+
+            int[] slots = new int[inventory.Count];
+            for (int i = 0; i < slots.Length; i++) slots[i] = i;
+
+            SingleComposer = capi.Gui
+                .CreateCompo("trashcan-" + pos.X + "-" + pos.Y + "-" + pos.Z, dialogBounds)
+                .AddShadedDialogBG(bg)
+                .AddDialogTitleBar(title, () => TryClose())
+                .BeginChildElements(bg)
+                    .AddItemSlotGrid(inventory, SendInvPacket, columns, slots, grid, "slots")
+                    .AddSmallButton(Lang.Get(Armed ? "trashcan:delete-confirm" : "trashcan:delete-button"), OnDeleteClicked, button, EnumButtonStyle.Normal, "delete")
+                .EndChildElements()
+                .Compose();
+        }
+
+        /// <summary>Moving items in the slots: sent to the trash can on the server.</summary>
+        private void SendInvPacket(object packet)
+        {
+            capi.Network.SendBlockEntityPacket(pos.X, pos.InternalY, pos.Z, packet);
+        }
+
+        private bool OnDeleteClicked()
+        {
+            if (Armed)
+            {
+                armedUntilMs = -1;
+                if (onDelete != null) onDelete();
+            }
+            else
+            {
+                armedUntilMs = capi.World.ElapsedMilliseconds + 3000;
+            }
+            Compose();
+            return true;
+        }
+
+        public override void OnRenderGUI(float deltaTime)
+        {
+            // The "click again" state runs out after 3 seconds.
+            if (armedUntilMs > 0 && !Armed)
+            {
+                armedUntilMs = -1;
+                Compose();
+            }
+            base.OnRenderGUI(deltaTime);
         }
     }
 }

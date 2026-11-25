@@ -6,8 +6,8 @@
   "authors": [
     "Jumboking3"
   ],
-  "description": "A trash can you open like a chest: the lid swings open, you put unwanted items in, close it, and they're deleted. Crafted from 5 boards and a copper ingot.",
-  "version": "1.1.0",
+  "description": "A trash can you open like a chest: the lid swings open, you put unwanted items in, and press Delete items to delete them for good. Crafted from 5 boards and a copper ingot.",
+  "version": "1.2.0",
   "side": "Universal",
   "requiredOnClient": true,
   "requiredOnServer": true,
