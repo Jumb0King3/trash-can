@@ -3,7 +3,9 @@ using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
+using Vintagestory.API.Datastructures;
 using Vintagestory.API.Server;
+using Vintagestory.GameContent;
 
 namespace TrashCan
 {
@@ -61,6 +63,20 @@ namespace TrashCan
         private GuiDialogBlockEntityInventory dialog;
         private string lastCloserUid;
 
+        /// <summary>Whether anyone has it open. Set by the server and synced to every player, who see the lid open.</summary>
+        private bool lidOpen;
+        private bool animatorReady;
+        private bool animatorFailed;
+
+        private BlockEntityAnimationUtil AnimUtil
+        {
+            get
+            {
+                BEBehaviorAnimatable beh = GetBehavior<BEBehaviorAnimatable>();
+                return beh != null ? beh.animUtil : null;
+            }
+        }
+
         public override void Initialize(ICoreAPI api)
         {
             base.Initialize(api);
@@ -74,6 +90,117 @@ namespace TrashCan
             if (api.Side == EnumAppSide.Server)
             {
                 RegisterGameTickListener(OnServerTick, 500);
+            }
+            else
+            {
+                SetupAnimator();
+                ApplyLidState();
+            }
+        }
+
+        // ---------------- Lid animation (client) ----------------
+
+        /// <summary>Loads the shape with its "lidopen" animation into the game's block animator.</summary>
+        private void SetupAnimator()
+        {
+            if (animatorReady || animatorFailed) return;
+            ICoreClientAPI capi = Api as ICoreClientAPI;
+            BlockEntityAnimationUtil util = AnimUtil;
+            if (capi == null || util == null || Block == null) return;
+
+            try
+            {
+                Shape shape = Shape.TryGet(Api, new AssetLocation("trashcan", "shapes/block/trashcan.json"));
+                if (shape == null)
+                {
+                    animatorFailed = true;
+                    Api.Logger.Warning("[trashcan] Could not load the trash can shape for the lid animation");
+                    return;
+                }
+                util.InitializeAnimator("trashcan-lid", shape, capi.Tesselator.GetTextureSource(Block), new Vec3f(0, 0, 0));
+                animatorReady = true;
+            }
+            catch (Exception e)
+            {
+                animatorFailed = true;
+                Api.Logger.Warning("[trashcan] Lid animation unavailable: {0}", e.Message);
+            }
+        }
+
+        /// <summary>Opens or closes the lid to match lidOpen.</summary>
+        private void ApplyLidState()
+        {
+            if (Api == null || Api.Side != EnumAppSide.Client) return;
+            SetupAnimator();
+            BlockEntityAnimationUtil util = AnimUtil;
+            if (!animatorReady || util == null) return;
+
+            try
+            {
+                if (lidOpen)
+                {
+                    util.StartAnimation(new AnimationMetaData
+                    {
+                        Animation = "lidopen",
+                        Code = "lidopen",
+                        AnimationSpeed = 1.8f,
+                        EaseOutSpeed = 6,
+                        EaseInSpeed = 15
+                    });
+                }
+                else
+                {
+                    util.StopAnimation("lidopen");
+                }
+            }
+            catch (Exception e)
+            {
+                Api.Logger.Warning("[trashcan] Lid animation failed: {0}", e.Message);
+            }
+        }
+
+        // ---------------- Lid state (server, synced) ----------------
+
+        private bool AnyoneHasItOpen()
+        {
+            foreach (IPlayer player in Api.World.AllOnlinePlayers)
+            {
+                if (player != null && inventory.HasOpened(player)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Server: if whether anyone has it open changed, tell every player so their lid moves.</summary>
+        private void UpdateLidState()
+        {
+            if (Api == null || Api.Side != EnumAppSide.Server || inventory == null) return;
+            bool open = AnyoneHasItOpen();
+            if (open == lidOpen) return;
+            lidOpen = open;
+            MarkDirty(false);
+        }
+
+        public override void ToTreeAttributes(ITreeAttribute tree)
+        {
+            base.ToTreeAttributes(tree);
+            tree.SetBool("lidOpen", lidOpen);
+        }
+
+        public override void FromTreeAttributes(ITreeAttribute tree, IWorldAccessor worldForResolving)
+        {
+            base.FromTreeAttributes(tree, worldForResolving);
+            bool open = tree.GetBool("lidOpen");
+            if (Api != null && Api.Side == EnumAppSide.Client)
+            {
+                if (open != lidOpen)
+                {
+                    lidOpen = open;
+                    ApplyLidState();
+                }
+            }
+            else
+            {
+                lidOpen = open;
             }
         }
 
@@ -98,6 +225,8 @@ namespace TrashCan
                 capi.Network.SendBlockEntityPacket(Pos, (int)EnumBlockEntityPacketId.Close, null);
             };
             dialog.TryOpen();
+            lidOpen = true;
+            ApplyLidState();
             capi.Network.SendPacketClient(inventory.Open(byPlayer));
             capi.Network.SendBlockEntityPacket(Pos, (int)EnumBlockEntityPacketId.Open, null);
         }
@@ -117,6 +246,7 @@ namespace TrashCan
             {
                 if (!MayUse(player)) return;
                 if (player.InventoryManager != null) player.InventoryManager.OpenInventory(inventory);
+                UpdateLidState();
                 return;
             }
 
@@ -124,6 +254,7 @@ namespace TrashCan
             {
                 if (player.InventoryManager != null) player.InventoryManager.CloseInventory(inventory);
                 lastCloserUid = player.PlayerUID;
+                UpdateLidState();
             }
         }
 
@@ -144,13 +275,9 @@ namespace TrashCan
 
         private void OnServerTick(float dt)
         {
-            if (inventory == null || inventory.Empty) return;
-
-            // Wait until nobody has it open.
-            foreach (IPlayer player in Api.World.AllOnlinePlayers)
-            {
-                if (player != null && inventory.HasOpened(player)) return;
-            }
+            if (inventory == null) return;
+            UpdateLidState();
+            if (inventory.Empty || lidOpen) return;   // wait until nobody has it open
 
             int items = 0;
             int stacks = 0;

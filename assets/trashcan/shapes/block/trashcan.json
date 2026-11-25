@@ -281,145 +281,179 @@
             13.5
           ]
         }
-      }
-    },
-    {
-      "name": "LidTop",
-      "from": [
-        3.5,
-        13,
-        3.5
+      },
+      "rotationOrigin": [
+        8,
+        12,
+        2.5
       ],
-      "to": [
-        12.5,
-        13.5,
-        12.5
-      ],
-      "faces": {
-        "north": {
-          "texture": "#lid",
-          "uv": [
-            3.5,
-            2.5,
-            12.5,
-            3
-          ]
+      "children": [
+        {
+          "name": "LidTop",
+          "from": [
+            1.0,
+            1,
+            1.0
+          ],
+          "to": [
+            10.0,
+            1.5,
+            10.0
+          ],
+          "faces": {
+            "north": {
+              "texture": "#lid",
+              "uv": [
+                3.5,
+                2.5,
+                12.5,
+                3
+              ]
+            },
+            "south": {
+              "texture": "#lid",
+              "uv": [
+                3.5,
+                2.5,
+                12.5,
+                3
+              ]
+            },
+            "east": {
+              "texture": "#lid",
+              "uv": [
+                3.5,
+                2.5,
+                12.5,
+                3
+              ]
+            },
+            "west": {
+              "texture": "#lid",
+              "uv": [
+                3.5,
+                2.5,
+                12.5,
+                3
+              ]
+            },
+            "up": {
+              "texture": "#lid",
+              "uv": [
+                3.5,
+                3.5,
+                12.5,
+                12.5
+              ]
+            },
+            "down": {
+              "texture": "#lid",
+              "uv": [
+                3.5,
+                3.5,
+                12.5,
+                12.5
+              ]
+            }
+          }
         },
-        "south": {
-          "texture": "#lid",
-          "uv": [
-            3.5,
-            2.5,
-            12.5,
-            3
-          ]
-        },
-        "east": {
-          "texture": "#lid",
-          "uv": [
-            3.5,
-            2.5,
-            12.5,
-            3
-          ]
-        },
-        "west": {
-          "texture": "#lid",
-          "uv": [
-            3.5,
-            2.5,
-            12.5,
-            3
-          ]
-        },
-        "up": {
-          "texture": "#lid",
-          "uv": [
-            3.5,
-            3.5,
-            12.5,
-            12.5
-          ]
-        },
-        "down": {
-          "texture": "#lid",
-          "uv": [
-            3.5,
-            3.5,
-            12.5,
-            12.5
-          ]
+        {
+          "name": "Handle",
+          "from": [
+            4.0,
+            1.5,
+            4.75
+          ],
+          "to": [
+            7.0,
+            2,
+            6.25
+          ],
+          "faces": {
+            "north": {
+              "texture": "#band",
+              "uv": [
+                6.5,
+                2,
+                9.5,
+                2.5
+              ]
+            },
+            "south": {
+              "texture": "#band",
+              "uv": [
+                6.5,
+                2,
+                9.5,
+                2.5
+              ]
+            },
+            "east": {
+              "texture": "#band",
+              "uv": [
+                7.25,
+                2,
+                8.75,
+                2.5
+              ]
+            },
+            "west": {
+              "texture": "#band",
+              "uv": [
+                7.25,
+                2,
+                8.75,
+                2.5
+              ]
+            },
+            "up": {
+              "texture": "#band",
+              "uv": [
+                6.5,
+                7.25,
+                9.5,
+                8.75
+              ]
+            },
+            "down": {
+              "texture": "#band",
+              "uv": [
+                6.5,
+                7.25,
+                9.5,
+                8.75
+              ]
+            }
+          }
         }
-      }
-    },
+      ]
+    }
+  ],
+  "animations": [
     {
-      "name": "Handle",
-      "from": [
-        6.5,
-        13.5,
-        7.25
-      ],
-      "to": [
-        9.5,
-        14,
-        8.75
-      ],
-      "faces": {
-        "north": {
-          "texture": "#band",
-          "uv": [
-            6.5,
-            2,
-            9.5,
-            2.5
-          ]
+      "name": "Lid open",
+      "code": "lidopen",
+      "quantityframes": 20,
+      "onActivityStopped": "Rewind",
+      "onAnimationEnd": "Hold",
+      "keyframes": [
+        {
+          "frame": 0,
+          "elements": {
+            "Lid": {
+              "rotationX": 0
+            }
+          }
         },
-        "south": {
-          "texture": "#band",
-          "uv": [
-            6.5,
-            2,
-            9.5,
-            2.5
-          ]
-        },
-        "east": {
-          "texture": "#band",
-          "uv": [
-            7.25,
-            2,
-            8.75,
-            2.5
-          ]
-        },
-        "west": {
-          "texture": "#band",
-          "uv": [
-            7.25,
-            2,
-            8.75,
-            2.5
-          ]
-        },
-        "up": {
-          "texture": "#band",
-          "uv": [
-            6.5,
-            7.25,
-            9.5,
-            8.75
-          ]
-        },
-        "down": {
-          "texture": "#band",
-          "uv": [
-            6.5,
-            7.25,
-            9.5,
-            8.75
-          ]
+        {
+          "frame": 19,
+          "elements": {
+            "Lid": {
+              "rotationX": -105
+            }
+          }
         }
-      }
+      ]
     }
   ]
 }
